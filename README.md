@@ -107,26 +107,6 @@ Ubuntu Target 컨테이너에서 **유동적인 시스템 부하**를 자동 생
 
 ---
 
-## 🔒 보안 및 코드 품질
-
-### CI/CD (GitHub Actions)
-- **Security Scan**: Gitleaks, Trivy, Hadolint
-- **Code Quality**: yamllint, ShellCheck, promtool, Ruff
-- **CodeQL**: Python 정적 분석
-- **Dependabot**: 의존성 취약점 자동 모니터링
-
-### 로컬 검사
-```bash
-# 전체 보안/품질 검사 실행
-./scripts/security-check.sh
-
-# Pre-commit 훅 설치
-cp scripts/pre-commit .git/hooks/pre-commit
-chmod +x .git/hooks/pre-commit
-```
-
----
-
 ## 🛠️ 사용 기술
 
 | 기술 | 버전 | 용도 |
