@@ -73,13 +73,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Lint docker/ubuntu/Dockerfile
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: docker/ubuntu/Dockerfile
           config: .hadolint.yaml
 
       - name: Lint custom-exporter/Dockerfile
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@v3.3.0
         with:
           dockerfile: custom-exporter/Dockerfile
           config: .hadolint.yaml
