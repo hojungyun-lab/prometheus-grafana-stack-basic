@@ -1,0 +1,49 @@
+# =============================================================================
+# Prometheus Recording Rules - 사전 계산 규칙
+# =============================================================================
+# Recording Rules는 자주 사용하는 복잡한 쿼리를 사전 계산하여
+# 새로운 시계열로 저장합니다. 대시보드 성능을 크게 향상시킵니다.
+#
+# 참고: https://prometheus.io/docs/prometheus/latest/configuration/recording_rules/
+# =============================================================================
+
+groups:
+  - name: cpu_recording_rules
+    interval: 15s
+    rules:
+      # CPU 사용률 (%) - 전체 평균
+      - record: instance:node_cpu_utilization:avg_rate5m
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+
+      # CPU 사용률 - 모드별 비율
+      - record: instance:node_cpu_mode:rate5m
+        expr: avg by(instance, mode) (rate(node_cpu_seconds_total[5m])) * 100
+
+  - name: memory_recording_rules
+    interval: 15s
+    rules:
+      # 메모리 사용률 (%)
+      - record: instance:node_memory_utilization:ratio
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+
+      # 사용 중인 메모리 (GiB)
+      - record: instance:node_memory_used:gib
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / 1073741824
+
+  - name: disk_recording_rules
+    interval: 30s
+    rules:
+      # 디스크 사용률 (%)
+      - record: instance:node_filesystem_utilization:ratio
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"})) * 100
+
+  - name: network_recording_rules
+    interval: 15s
+    rules:
+      # 네트워크 수신 속도 (bytes/s)
+      - record: instance:node_network_receive:rate5m
+        expr: rate(node_network_receive_bytes_total{device!="lo"}[5m])
+
+      # 네트워크 송신 속도 (bytes/s)
+      - record: instance:node_network_transmit:rate5m
+        expr: rate(node_network_transmit_bytes_total{device!="lo"}[5m])

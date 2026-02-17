@@ -1,0 +1,94 @@
+# =============================================================================
+# Prometheus 메인 설정 파일
+# =============================================================================
+# 참고: https://prometheus.io/docs/prometheus/latest/configuration/configuration/
+# =============================================================================
+
+# 글로벌 설정 - 모든 scrape job에 적용되는 기본값
+global:
+  scrape_interval: 15s       # 메트릭 수집 간격 (기본: 1분 → 학습용으로 15초)
+  evaluation_interval: 15s   # Rule 평가 간격
+  scrape_timeout: 10s        # 수집 타임아웃
+
+  # 외부 시스템 연동 시 추가되는 레이블
+  external_labels:
+    monitor: 'prometheus-grafana-lab'
+    environment: 'learning'
+
+# =============================================================================
+# Alert Rule 파일 경로
+# =============================================================================
+rule_files:
+  - "alert-rules.yml"
+  - "recording-rules.yml"
+
+# =============================================================================
+# Alertmanager 연동 설정
+# =============================================================================
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - "alertmanager:9093"
+
+# =============================================================================
+# 스크랩 설정 - 메트릭을 수집할 대상(Target) 정의
+# =============================================================================
+scrape_configs:
+
+  # ---------------------------------------------------------------------------
+  # 1. Prometheus 자체 모니터링
+  # ---------------------------------------------------------------------------
+  # Prometheus도 자신의 메트릭을 /metrics 엔드포인트에 노출합니다
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+        labels:
+          instance_name: "prometheus-server"
+
+  # ---------------------------------------------------------------------------
+  # 2. Node Exporter (Ubuntu Target)
+  # ---------------------------------------------------------------------------
+  # Ubuntu 컨테이너의 시스템 메트릭 (CPU, 메모리, 디스크, 네트워크)
+  - job_name: "node-exporter"
+    static_configs:
+      - targets: ["ubuntu-target:9100"]
+        labels:
+          instance_name: "ubuntu-target"
+          os: "ubuntu"
+    # 메트릭 필터링 예제 (선택적)
+    # metric_relabel_configs:
+    #   - source_labels: [__name__]
+    #     regex: 'node_cpu_seconds_total|node_memory.*|node_filesystem.*|node_disk.*|node_network.*'
+    #     action: keep
+
+  # ---------------------------------------------------------------------------
+  # 3. Custom Exporter (Python 비즈니스 메트릭)
+  # ---------------------------------------------------------------------------
+  # 직접 개발한 Python Exporter의 비즈니스 메트릭
+  - job_name: "custom-exporter"
+    static_configs:
+      - targets: ["custom-exporter:8000"]
+        labels:
+          instance_name: "app-metrics"
+          type: "application"
+    scrape_interval: 10s    # 이 job만 10초 간격으로 수집
+
+  # ---------------------------------------------------------------------------
+  # 4. cAdvisor (Docker 컨테이너 메트릭)
+  # ---------------------------------------------------------------------------
+  # 각 Docker 컨테이너의 리소스 사용량
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]
+        labels:
+          instance_name: "docker-containers"
+
+  # ---------------------------------------------------------------------------
+  # 5. Alertmanager 모니터링
+  # ---------------------------------------------------------------------------
+  - job_name: "alertmanager"
+    static_configs:
+      - targets: ["alertmanager:9093"]
+        labels:
+          instance_name: "alertmanager"

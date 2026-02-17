@@ -1,0 +1,61 @@
+# =============================================================================
+# Alertmanager 설정
+# =============================================================================
+# 참고: https://prometheus.io/docs/alerting/latest/configuration/
+# =============================================================================
+
+# 글로벌 설정
+global:
+  resolve_timeout: 5m        # 알림 해소 판단 시간
+
+# =============================================================================
+# 라우팅 설정 - 알림을 어떤 Receiver로 보낼지 결정
+# =============================================================================
+route:
+  # 기본 그룹 기준 (같은 그룹의 알림은 묶어서 전송)
+  group_by: ['alertname', 'severity']
+  group_wait: 30s            # 그룹 내 첫 알림 대기 시간
+  group_interval: 5m         # 같은 그룹 재전송 간격
+  repeat_interval: 4h        # 동일 알림 반복 간격
+
+  # 기본 Receiver
+  receiver: 'webhook-receiver'
+
+  # 하위 라우팅 규칙
+  routes:
+    # Critical 알림은 즉시 전송
+    - match:
+        severity: critical
+      receiver: 'webhook-receiver'
+      group_wait: 10s
+      repeat_interval: 1h
+
+    # Info 레벨은 느슨하게
+    - match:
+        severity: info
+      receiver: 'webhook-receiver'
+      group_wait: 1m
+      repeat_interval: 12h
+
+# =============================================================================
+# Receiver 설정 - 알림 수신 채널
+# =============================================================================
+receivers:
+  # Webhook Receiver (로컬 테스트용)
+  # 실제 운영에서는 Slack, PagerDuty, Email, Telegram 등으로 교체
+  - name: 'webhook-receiver'
+    webhook_configs:
+      - url: 'http://localhost:5001/webhook'    # 테스트 용도 (실제로는 존재하지 않아도 OK)
+        send_resolved: true                      # 알림 해소 시에도 전송
+
+# =============================================================================
+# Inhibition Rules - 알림 억제 규칙
+# =============================================================================
+# 상위 알림이 발생하면 하위 알림을 억제합니다.
+# 예: NodeExporterDown이 발생하면 해당 노드의 HighCpuUsage 알림은 억제
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['instance']

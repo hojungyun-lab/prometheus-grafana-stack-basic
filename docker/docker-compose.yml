@@ -1,0 +1,144 @@
+# =============================================================================
+# Prometheus & Grafana 학습 스택 - Docker Compose
+# =============================================================================
+# 사용법:
+#   시작: docker compose up -d
+#   중지: docker compose down
+#   로그: docker compose logs -f [서비스명]
+#   리셋: docker compose down -v && docker compose up -d
+# =============================================================================
+
+services:
+  # ---------------------------------------------------------------------------
+  # Prometheus - 메트릭 수집 및 저장 (시계열 데이터베이스)
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    container_name: prometheus
+    restart: unless-stopped
+    ports:
+      - "9090:9090"          # Prometheus UI: http://localhost:9090
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ../prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:ro
+      - ../prometheus/recording-rules.yml:/etc/prometheus/recording-rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'        # 데이터 보존 기간
+      - '--web.enable-lifecycle'                    # API를 통한 설정 리로드 허용
+      - '--web.enable-admin-api'                    # Admin API 활성화
+    networks:
+      - monitoring
+    depends_on:
+      - ubuntu-target
+      - custom-exporter
+
+  # ---------------------------------------------------------------------------
+  # Grafana - 시각화 대시보드 플랫폼
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"          # Grafana UI: http://localhost:3000
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ../grafana/grafana.ini:/etc/grafana/grafana.ini:ro
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana_data:/var/lib/grafana
+    networks:
+      - monitoring
+    depends_on:
+      - prometheus
+
+  # ---------------------------------------------------------------------------
+  # Alertmanager - 알림 관리
+  # ---------------------------------------------------------------------------
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: alertmanager
+    restart: unless-stopped
+    ports:
+      - "9093:9093"          # Alertmanager UI: http://localhost:9093
+    volumes:
+      - ../alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+    networks:
+      - monitoring
+
+  # ---------------------------------------------------------------------------
+  # Ubuntu Target - 모니터링 대상 서버 (Node Exporter 포함)
+  # ---------------------------------------------------------------------------
+  ubuntu-target:
+    build:
+      context: ./ubuntu
+      dockerfile: Dockerfile
+    container_name: ubuntu-target
+    restart: unless-stopped
+    ports:
+      - "9100:9100"          # Node Exporter 메트릭: http://localhost:9100/metrics
+    environment:
+      - SIMULATOR_MODE=normal    # normal | spike | gradual | chaos
+      - SIMULATOR_INTERVAL=30   # 시뮬레이션 간격 (초)
+    networks:
+      - monitoring
+
+  # ---------------------------------------------------------------------------
+  # Custom Exporter - Python 기반 비즈니스 메트릭 수집기
+  # ---------------------------------------------------------------------------
+  custom-exporter:
+    build:
+      context: ../custom-exporter
+      dockerfile: Dockerfile
+    container_name: custom-exporter
+    restart: unless-stopped
+    ports:
+      - "8000:8000"          # Custom 메트릭: http://localhost:8000/metrics
+    networks:
+      - monitoring
+
+  # ---------------------------------------------------------------------------
+  # cAdvisor - 컨테이너 메트릭 수집
+  # ---------------------------------------------------------------------------
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.49.1
+    container_name: cadvisor
+    restart: unless-stopped
+    ports:
+      - "8080:8080"          # cAdvisor UI: http://localhost:8080
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+      - /dev/disk/:/dev/disk:ro
+    privileged: true
+    devices:
+      - /dev/kmsg
+    networks:
+      - monitoring
+
+# =============================================================================
+# 네트워크
+# =============================================================================
+networks:
+  monitoring:
+    driver: bridge
+    name: prom-grafana-net
+
+# =============================================================================
+# 볼륨 (데이터 영속성)
+# =============================================================================
+volumes:
+  prometheus_data:
+    name: prom-grafana-prometheus-data
+  grafana_data:
+    name: prom-grafana-grafana-data

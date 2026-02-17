@@ -1,0 +1,98 @@
+# =============================================================================
+# 코드 품질 검사 CI - Code Quality
+# =============================================================================
+# 트리거: push, pull_request
+# 검사 항목: yamllint, shellcheck, hadolint, promtool, Python lint
+# =============================================================================
+
+name: Code Quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. YAML Lint - 모든 YAML 파일 문법/스타일 검사
+  # ---------------------------------------------------------------------------
+  yamllint:
+    name: YAML Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Run yamllint
+        run: yamllint -c .yamllint.yml .
+
+  # ---------------------------------------------------------------------------
+  # 2. ShellCheck - Shell 스크립트 정적 분석
+  # ---------------------------------------------------------------------------
+  shellcheck:
+    name: Shell Script Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run ShellCheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          scandir: './docker/ubuntu/scripts'
+          additional_files: 'scripts/security-check.sh'
+
+  # ---------------------------------------------------------------------------
+  # 3. Prometheus Config 검증
+  # ---------------------------------------------------------------------------
+  promtool:
+    name: Prometheus Config Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate Prometheus config
+        run: |
+          # promtool 다운로드
+          PROM_VERSION="2.51.0"
+          wget -q "https://github.com/prometheus/prometheus/releases/download/v${PROM_VERSION}/prometheus-${PROM_VERSION}.linux-amd64.tar.gz"
+          tar -xzf "prometheus-${PROM_VERSION}.linux-amd64.tar.gz"
+
+          # 설정 파일 검증
+          echo "=== Checking prometheus.yml ==="
+          "./prometheus-${PROM_VERSION}.linux-amd64/promtool" check config prometheus/prometheus.yml
+
+          echo "=== Checking alert rules ==="
+          "./prometheus-${PROM_VERSION}.linux-amd64/promtool" check rules prometheus/alert-rules.yml
+
+          echo "=== Checking recording rules ==="
+          "./prometheus-${PROM_VERSION}.linux-amd64/promtool" check rules prometheus/recording-rules.yml
+
+  # ---------------------------------------------------------------------------
+  # 4. Python Lint - Custom Exporter 코드 검사
+  # ---------------------------------------------------------------------------
+  python-lint:
+    name: Python Lint (Ruff)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Ruff
+        run: pip install ruff
+
+      - name: Run Ruff (linter)
+        run: ruff check custom-exporter/
+
+      - name: Run Ruff (formatter check)
+        run: ruff format --check custom-exporter/

@@ -1,0 +1,94 @@
+#!/bin/bash
+# =============================================================================
+# Git Pre-commit Hook
+# =============================================================================
+# 커밋 시 자동으로 보안 및 코드 품질 검사를 실행합니다.
+#
+# 설치 방법:
+#   cp scripts/pre-commit .git/hooks/pre-commit
+#   chmod +x .git/hooks/pre-commit
+# =============================================================================
+
+echo "🔍 Pre-commit 검사 실행 중..."
+
+# Staged 파일만 검사
+STAGED_FILES=$(git diff --cached --name-only)
+
+if [ -z "${STAGED_FILES}" ]; then
+    echo "변경된 파일이 없습니다."
+    exit 0
+fi
+
+ERRORS=0
+
+# YAML 파일 검사
+YAML_FILES=$(echo "${STAGED_FILES}" | grep -E '\.(yml|yaml)$' || true)
+if [ -n "${YAML_FILES}" ] && command -v yamllint &> /dev/null; then
+    echo "  📋 YAML Lint 검사..."
+    for f in ${YAML_FILES}; do
+        if [ -f "${f}" ]; then
+            if ! yamllint -c .yamllint.yml "${f}" 2>/dev/null; then
+                ERRORS=$((ERRORS + 1))
+            fi
+        fi
+    done
+fi
+
+# Shell 스크립트 검사
+SH_FILES=$(echo "${STAGED_FILES}" | grep -E '\.sh$' || true)
+if [ -n "${SH_FILES}" ] && command -v shellcheck &> /dev/null; then
+    echo "  🐚 ShellCheck 검사..."
+    for f in ${SH_FILES}; do
+        if [ -f "${f}" ]; then
+            if ! shellcheck "${f}" 2>/dev/null; then
+                ERRORS=$((ERRORS + 1))
+            fi
+        fi
+    done
+fi
+
+# Dockerfile 검사
+DOCKER_FILES=$(echo "${STAGED_FILES}" | grep -i 'Dockerfile' || true)
+if [ -n "${DOCKER_FILES}" ] && command -v hadolint &> /dev/null; then
+    echo "  🐳 Hadolint 검사..."
+    for f in ${DOCKER_FILES}; do
+        if [ -f "${f}" ]; then
+            if ! hadolint --config .hadolint.yaml "${f}" 2>/dev/null; then
+                ERRORS=$((ERRORS + 1))
+            fi
+        fi
+    done
+fi
+
+# Python 파일 검사
+PY_FILES=$(echo "${STAGED_FILES}" | grep -E '\.py$' || true)
+if [ -n "${PY_FILES}" ] && command -v ruff &> /dev/null; then
+    echo "  🐍 Python Lint 검사..."
+    for f in ${PY_FILES}; do
+        if [ -f "${f}" ]; then
+            if ! ruff check "${f}" 2>/dev/null; then
+                ERRORS=$((ERRORS + 1))
+            fi
+        fi
+    done
+fi
+
+# Gitleaks 검사 (staged 변경 사항만)
+if command -v gitleaks &> /dev/null; then
+    echo "  🔐 Gitleaks 시크릿 검사..."
+    if ! gitleaks protect --staged --no-banner 2>/dev/null; then
+        echo "  ⚠️  시크릿이 감지되었습니다!"
+        ERRORS=$((ERRORS + 1))
+    fi
+fi
+
+# 결과
+if [ ${ERRORS} -gt 0 ]; then
+    echo ""
+    echo "❌ ${ERRORS}개 검사가 실패했습니다. 수정 후 다시 커밋하세요."
+    echo "   검사를 건너뛰려면: git commit --no-verify"
+    exit 1
+else
+    echo "✅ 모든 검사 통과!"
+    exit 0
+fi

@@ -1,0 +1,10 @@
+# Hadolint 설정 - Dockerfile 린트 규칙
+# 참고: https://github.com/hadolint/hadolint
+
+ignored:
+  - DL3008    # apt-get에서 버전 고정 미사용 허용
+  - DL3013    # pip에서 버전 고정 미사용 허용
+
+trustedRegistries:
+  - docker.io
+  - gcr.io

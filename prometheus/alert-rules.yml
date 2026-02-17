@@ -1,0 +1,106 @@
+# =============================================================================
+# Prometheus Alert Rules - 알림 규칙
+# =============================================================================
+# 참고: https://prometheus.io/docs/prometheus/latest/configuration/alerting_rules/
+# =============================================================================
+
+groups:
+  # ---------------------------------------------------------------------------
+  # 인프라 알림 (Node Exporter 기반)
+  # ---------------------------------------------------------------------------
+  - name: infrastructure_alerts
+    rules:
+      # Node Exporter 다운 감지
+      - alert: NodeExporterDown
+        expr: up{job="node-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Node Exporter가 다운되었습니다"
+          description: "{{ $labels.instance }}의 Node Exporter가 1분 이상 응답하지 않습니다."
+
+      # CPU 사용률 80% 초과
+      - alert: HighCpuUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CPU 사용률이 높습니다"
+          description: "{{ $labels.instance }}의 CPU 사용률이 {{ $value | printf \"%.1f\" }}%로 80%를 초과했습니다."
+
+      # CPU 사용률 95% 초과 (심각)
+      - alert: CriticalCpuUsage
+        expr: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 95
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CPU 사용률이 위험 수준입니다"
+          description: "{{ $labels.instance }}의 CPU 사용률이 {{ $value | printf \"%.1f\" }}%로 95%를 초과했습니다."
+
+      # 메모리 사용률 90% 초과
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 90
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "메모리 사용률이 높습니다"
+          description: "{{ $labels.instance }}의 메모리 사용률이 {{ $value | printf \"%.1f\" }}%입니다."
+
+      # 디스크 사용률 85% 초과
+      - alert: HighDiskUsage
+        expr: (1 - (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay"})) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "디스크 사용률이 높습니다"
+          description: "{{ $labels.instance }} ({{ $labels.mountpoint }})의 디스크 사용률이 {{ $value | printf \"%.1f\" }}%입니다."
+
+      # 디스크 공간 예측 (24시간 내 가득 참)
+      - alert: DiskSpacePrediction
+        expr: predict_linear(node_filesystem_avail_bytes{fstype!~"tmpfs|overlay"}[6h], 24*3600) < 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "디스크 공간이 24시간 내 부족할 수 있습니다"
+          description: "{{ $labels.instance }} ({{ $labels.mountpoint }})의 디스크 공간이 현재 추세대로면 24시간 내 소진될 것으로 예측됩니다."
+
+  # ---------------------------------------------------------------------------
+  # 애플리케이션 알림 (Custom Exporter 기반)
+  # ---------------------------------------------------------------------------
+  - name: application_alerts
+    rules:
+      # Custom Exporter 다운 감지
+      - alert: CustomExporterDown
+        expr: up{job="custom-exporter"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Custom Exporter가 다운되었습니다"
+          description: "Custom Exporter ({{ $labels.instance }})가 1분 이상 응답하지 않습니다."
+
+      # 애플리케이션 에러율 높음
+      - alert: HighErrorRate
+        expr: app_error_rate > 0.05
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "애플리케이션 에러율이 높습니다"
+          description: "에러율이 {{ $value | printf \"%.2f\" }}로 5%를 초과했습니다."
+
+      # 활성 사용자 급감
+      - alert: ActiveUsersDropped
+        expr: app_active_users < 5
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: "활성 사용자가 급감했습니다"
+          description: "현재 활성 사용자 수: {{ $value }}명"

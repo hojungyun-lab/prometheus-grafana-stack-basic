@@ -1,0 +1,44 @@
+# =============================================================================
+# Dependabot 설정 - 의존성 취약점 자동 모니터링
+# =============================================================================
+
+version: 2
+updates:
+  # Python 의존성 (pip)
+  - package-ecosystem: "pip"
+    directory: "/custom-exporter"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "security"
+
+  # GitHub Actions 버전
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
+
+  # Docker 이미지 버전
+  - package-ecosystem: "docker"
+    directory: "/docker/ubuntu"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
+
+  - package-ecosystem: "docker"
+    directory: "/custom-exporter"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "docker"
